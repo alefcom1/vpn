@@ -289,12 +289,12 @@ Hysteria2:  ${HY2_DOMAIN}:${HY2_PORT}/udp
   1. Открыть панель, создать администратора, СРАЗУ включить 2FA.
   2. Nodes -> Create: адрес 172.17.0.1, порт ${NODE_PORT}. Скопировать выданный ключ
      в ${NODE_DIR}/.env, затем: cd ${NODE_DIR} && docker compose up -d
-  3. Сгенерировать ключи REALITY:  ${REPO_DIR}/scripts/gen-reality-keys.sh
-  4. Подобрать REALITY_DEST по критериям из docs/RUNBOOK.md.
-  5. Вставить шаблон Xray (server/xray/config-template.json) в панель,
-     подставив __REALITY_DEST__, __REALITY_PRIVATE_KEY__, __REALITY_SHORT_ID__,
-     __GRPC_SERVICE_NAME__.
-  6. Templates -> Xray-JSON и Subscription page, HAPP Routing — см. docs/RUNBOOK.md.
+  3. Подобрать REALITY_DEST (docs/INSTALL.md, шаг 7) и записать в ${REPO_DIR}/.env
+  4. ${REPO_DIR}/scripts/render-xray-template.sh
+     -> готовый конфиг в /opt/vpn/xray-config.json и значения для хостов
+  5. Вставить этот конфиг в панель (Xray Config), затем создать хосты
+     по таблице из docs/INSTALL.md, шаг 12.
+  6. Templates -> Xray-JSON и Subscription page, HAPP Routing — docs/INSTALL.md, шаг 13.
   7. Hysteria2: inbound HYSTERIA2 уже в шаблоне. Проверить, что A-запись
      ${HY2_DOMAIN} указывает на сервер БЕЗ проксирования Cloudflare (UDP не проксируется).
 
