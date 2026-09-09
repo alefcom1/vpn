@@ -82,14 +82,22 @@ fi
 [ -n "${HY2_DOMAIN:-}" ]  || die "в .env не задан HY2_DOMAIN"
 
 # ------------------------------------------------------------------ пакеты ---
-log "Базовые пакеты и обновления"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get -y -qq upgrade
-apt-get install -y -qq --no-install-recommends \
-    curl ca-certificates gnupg jq nftables chrony vnstat \
-    unattended-upgrades openssl iproute2 sqlite3
-systemctl enable --now chrony vnstat >/dev/null 2>&1 || true
+if [ "$SHARED_HOST" = "yes" ]; then
+    # Чужой продакшен не обновляем: apt upgrade может перезапустить сервисы,
+    # о которых этот скрипт ничего не знает. Ставим только необходимое.
+    log "Минимальный набор пакетов (SHARED_HOST=yes, обновление системы пропущено)"
+    apt-get install -y -qq --no-install-recommends \
+        curl ca-certificates jq openssl iproute2
+else
+    log "Базовые пакеты и обновления"
+    apt-get -y -qq upgrade
+    apt-get install -y -qq --no-install-recommends \
+        curl ca-certificates gnupg jq nftables chrony vnstat \
+        unattended-upgrades openssl iproute2 sqlite3
+    systemctl enable --now chrony vnstat >/dev/null 2>&1 || true
+fi
 
 # ------------------------------------------------------------------ sysctl ---
 if [ "$MANAGE_SYSCTL" = "yes" ]; then
