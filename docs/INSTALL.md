@@ -114,13 +114,34 @@ dig +short hy2.traduzione.tech @1.1.1.1
 
 ## Шаг 4. Установка репозитория на сервер
 
+Сначала **только подключение**:
+
 ```bash
 ssh -i ~/.ssh/vpn_hetzner root@178.105.192.76
+```
 
+Убедиться, что приглашение сменилось на `root@<hostname>`. Если вставить весь блок
+разом и SSH не подключится, остальные команды тихо выполнятся на локальной машине.
+
+Затем, уже на сервере:
+
+```bash
 apt update && apt install -y git
 git clone https://github.com/alefcom1/vpn.git /root/vpn
 cd /root/vpn
 ```
+
+> **`Permission denied (publickey)`** означает, что сервер жив и SSH работает, но твоего
+> ключа у него нет. Ключ привязывается к серверу в момент создания. Варианты: подключиться
+> с той машины, где ключ лежит; пересоздать сервер с нужным ключом (он ещё пустой);
+> или добавить ключ через Hetzner Cloud → Console (пароль root при необходимости
+> сбрасывается там же, вкладка Rescue):
+>
+> ```bash
+> mkdir -p /root/.ssh && chmod 700 /root/.ssh
+> echo 'ssh-ed25519 AAAA... vpn-hetzner' >> /root/.ssh/authorized_keys
+> chmod 600 /root/.ssh/authorized_keys
+> ```
 
 ---
 
