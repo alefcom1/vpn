@@ -1,8 +1,19 @@
 #!/usr/sbin/nft -f
 # Генерируется bootstrap.sh из шаблона. Правки вносить в шаблон, не в /etc/nftables.conf.
-flush ruleset
+#
+# Управляем ТОЛЬКО своими таблицами. `flush ruleset` здесь недопустим: на Debian
+# iptables работает через nftables, и docker держит свои цепочки (DOCKER-FORWARD,
+# DOCKER-USER) в таблице ip filter. Сброс всего ruleset их сносит, после чего docker
+# перестаёт поднимать сети с ошибкой "No chain/target/match by that name".
+#
+# Идиома «создать, затем удалить» делает применение идемпотентным: удаление
+# несуществующей таблицы — ошибка, поэтому сначала гарантируем её наличие.
+table inet vpn
+delete table inet vpn
+table inet hy2nat
+delete table inet hy2nat
 
-table inet filter {
+table inet vpn {
     chain input {
         type filter hook input priority filter; policy drop;
 

@@ -146,6 +146,15 @@ nft -c -f /etc/nftables.conf || die "ruleset nftables не проходит пр
 systemctl enable --now nftables >/dev/null
 nft -f /etc/nftables.conf
 
+# Страховка: если ruleset когда-либо сбрасывался целиком (в том числе прошлой
+# версией этого скрипта), цепочки docker в iptables-nft уничтожены, и docker
+# не поднимет ни одной сети, пока не пересоздаст их при старте.
+if systemctl is-active --quiet docker; then
+    systemctl restart docker
+    for _ in $(seq 1 15); do docker info >/dev/null 2>&1 && break; sleep 1; done
+    docker info >/dev/null 2>&1 || die "docker не поднялся после перезапуска"
+fi
+
 # ------------------------------------------------------------------ панель ---
 log "Remnawave (панель)"
 mkdir -p "$PANEL_DIR"
