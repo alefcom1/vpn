@@ -58,6 +58,25 @@ set -a; . "$ENV_FILE"; set +a
 : "${HY2_PORT:=443}"
 : "${HY2_PORT_HOPPING:=}"
 
+# На машине, где уже крутится чужой продакшен, скрипт не имеет права менять
+# общесистемные вещи: firewall, SSH и sysctl принадлежат не ему.
+: "${SHARED_HOST:=no}"
+if [ "$SHARED_HOST" = "yes" ]; then
+    : "${MANAGE_FIREWALL:=no}"
+    : "${MANAGE_SSH:=no}"
+    : "${MANAGE_SYSCTL:=no}"
+    : "${USE_EXTERNAL_PROXY:=yes}"
+    # Панель должна быть достижима из чужого reverse proxy, который живёт
+    # в bridge-сети и до 127.0.0.1 хоста не дотянется.
+    : "${PANEL_BIND:=172.17.0.1}"
+else
+    : "${MANAGE_FIREWALL:=yes}"
+    : "${MANAGE_SSH:=yes}"
+    : "${MANAGE_SYSCTL:=yes}"
+    : "${USE_EXTERNAL_PROXY:=no}"
+    : "${PANEL_BIND:=127.0.0.1}"
+fi
+
 [ -n "${PANEL_DOMAIN:-}" ] || die "в .env не задан PANEL_DOMAIN"
 [ -n "${ACME_EMAIL:-}" ]  || die "в .env не задан ACME_EMAIL"
 [ -n "${HY2_DOMAIN:-}" ]  || die "в .env не задан HY2_DOMAIN"
@@ -73,6 +92,7 @@ apt-get install -y -qq --no-install-recommends \
 systemctl enable --now chrony vnstat >/dev/null 2>&1 || true
 
 # ------------------------------------------------------------------ sysctl ---
+if [ "$MANAGE_SYSCTL" = "yes" ]; then
 log "Сетевой тюнинг (BBR + fq)"
 install -m 0644 "$REPO_DIR/server/sysctl/99-vpn.conf" /etc/sysctl.d/99-vpn.conf
 sysctl --system >/dev/null
@@ -85,8 +105,12 @@ cat > /etc/systemd/system.conf.d/limits.conf <<'EOF'
 DefaultLimitNOFILE=1048576
 EOF
 systemctl daemon-reexec
+else
+    log "Сетевой тюнинг пропущен (SHARED_HOST=yes)"
+fi
 
 # --------------------------------------------------------------------- SSH ---
+if [ "$MANAGE_SSH" = "yes" ]; then
 log "Настройка SSH"
 if [ -s /root/.ssh/authorized_keys ] || compgen -G "/home/*/.ssh/authorized_keys" >/dev/null; then
     cat > /etc/ssh/sshd_config.d/99-hardening.conf <<EOF
@@ -99,6 +123,9 @@ EOF
 else
     warn "не найден authorized_keys — вход по паролю НЕ отключён, иначе потеряешь доступ"
 fi
+else
+    log "Настройка SSH пропущена (SHARED_HOST=yes)"
+fi
 
 # ------------------------------------------------------------------ docker ---
 if ! command -v docker >/dev/null; then
@@ -108,6 +135,7 @@ fi
 docker compose version >/dev/null 2>&1 || die "нет плагина docker compose"
 
 # ---------------------------------------------------------------- firewall ---
+if [ "$MANAGE_FIREWALL" = "yes" ]; then
 log "Firewall (nftables)"
 if [ -n "$SSH_ALLOW_IP" ]; then
     ssh_rule="ip saddr ${SSH_ALLOW_IP} tcp dport ${SSH_PORT} accept"
@@ -154,6 +182,11 @@ if systemctl is-active --quiet docker; then
     for _ in $(seq 1 15); do docker info >/dev/null 2>&1 && break; sleep 1; done
     docker info >/dev/null 2>&1 || die "docker не поднялся после перезапуска"
 fi
+else
+    log "Firewall пропущен (SHARED_HOST=yes)"
+    warn "порты ${XRAY_REALITY_PORT}/tcp, ${XRAY_GRPC_PORT}/tcp и ${HY2_PORT}/udp открыть самостоятельно"
+    warn "порт ${NODE_PORT}/tcp должен быть доступен ТОЛЬКО из docker-сетей (172.16.0.0/12)"
+fi
 
 # ------------------------------------------------------------------ панель ---
 log "Remnawave (панель)"
@@ -196,17 +229,22 @@ set_env SUB_PUBLIC_DOMAIN "${pub_host}/api/sub"   .env
 # Порты панели наружу торчать не должны: снаружи только Caddy.
 # Важно: docker обходит INPUT-цепочку nftables, поэтому привязка к 127.0.0.1 —
 # не «дополнительная мера», а единственное, что здесь работает.
-sed -i -E 's|^([[:space:]]*-[[:space:]]*)"?([0-9]{2,5}):([0-9]{2,5})"?[[:space:]]*$|\1"127.0.0.1:\2:\3"|' \
+sed -i -E "s|^([[:space:]]*-[[:space:]]*)\"?(([0-9]{1,3}\.){3}[0-9]{1,3}:)?([0-9]{2,5}):([0-9]{2,5})\"?[[:space:]]*$|\\1\"${PANEL_BIND}:\\4:\\5\"|" \
     docker-compose.yml
 
 cfg=$(docker compose config)
 n_pub=$(grep -c 'published:' <<<"$cfg" || true)
-n_loc=$(grep -c 'host_ip: 127.0.0.1' <<<"$cfg" || true)
-[ "$n_pub" -eq "$n_loc" ] || die "в docker-compose.yml остались порты, открытые наружу ($n_loc из $n_pub привязаны к 127.0.0.1) — поправь вручную"
+n_loc=$(grep -c "host_ip: ${PANEL_BIND}" <<<"$cfg" || true)
+[ "$n_pub" -eq "$n_loc" ] || die "в docker-compose.yml остались порты, открытые наружу ($n_loc из $n_pub привязаны к ${PANEL_BIND}) — поправь вручную"
 
 docker compose up -d
 
 # ------------------------------------------------------------------- caddy ---
+if [ "$USE_EXTERNAL_PROXY" = "yes" ]; then
+log "Свой Caddy не поднимается — используется внешний reverse proxy"
+warn "проксировать panel.${PANEL_DOMAIN#panel.} на ${PANEL_BIND}:3000 нужно в своём прокси"
+warn "сертификат для ${HY2_DOMAIN} тоже выдаёт он: см. docs/SHARED-HOST.md"
+else
 log "Caddy (TLS для панели и подписки)"
 mkdir -p "$CADDY_DIR"
 install -m 0644 "$REPO_DIR/server/caddy/docker-compose.yml" "$CADDY_DIR/docker-compose.yml"
@@ -217,6 +255,7 @@ render "$REPO_DIR/server/caddy/Caddyfile.tmpl" "$CADDY_DIR/Caddyfile" \
     "__HY2_DOMAIN__"       "$HY2_DOMAIN"
 mkdir -p "$CADDY_DIR/data" "$CADDY_DIR/config" "$CADDY_DIR/logs"
 (cd "$CADDY_DIR" && docker compose up -d)
+fi
 
 # -------------------------------------------------------------------- нода ---
 log "Remnawave Node (Xray)"

@@ -15,6 +15,7 @@ cp .env.example .env && nano .env
 ## Документация
 
 - [docs/INSTALL.md](docs/INSTALL.md) — пошаговая установка с нуля
+- [docs/SHARED-HOST.md](docs/SHARED-HOST.md) — если на сервере уже есть продакшен
 - [docs/PLAN.md](docs/PLAN.md) — план работ, выбор протоколов, риски
 - [docs/RUNBOOK.md](docs/RUNBOOK.md) — процедуры: запуск, выдача доступов, авария
 
