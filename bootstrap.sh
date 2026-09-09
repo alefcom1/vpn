@@ -289,9 +289,10 @@ install -m 0644 "$REPO_DIR/server/node/docker-compose.yml" "$NODE_DIR/docker-com
 if [ ! -f "$NODE_DIR/.env" ]; then
     cat > "$NODE_DIR/.env" <<EOF
 NODE_PORT=${NODE_PORT}
-# Значение выдаёт панель при создании ноды (Nodes -> Create).
-# Скопировать строку целиком сюда и запустить: cd ${NODE_DIR} && docker compose up -d
-SSL_CERT=PASTE_FROM_PANEL
+# Значение выдаёт панель при создании ноды: поле "Secret Key (SECRET_KEY)".
+# Скопировать целиком, одной строкой, без кавычек, затем:
+#   cd ${NODE_DIR} && docker compose up -d
+SECRET_KEY=PASTE_FROM_PANEL
 EOF
     chmod 600 "$NODE_DIR/.env"
 fi
