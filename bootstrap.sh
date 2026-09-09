@@ -234,16 +234,32 @@ set_env PANEL_DOMAIN     "$PANEL_DOMAIN"          .env
 set_env FRONT_END_DOMAIN "$PANEL_DOMAIN"          .env
 set_env SUB_PUBLIC_DOMAIN "${pub_host}/api/sub"   .env
 
-# Порты панели наружу торчать не должны: снаружи только Caddy.
-# Важно: docker обходит INPUT-цепочку nftables, поэтому привязка к 127.0.0.1 —
-# не «дополнительная мера», а единственное, что здесь работает.
-sed -i -E "s|^([[:space:]]*-[[:space:]]*)\"?(([0-9]{1,3}\.){3}[0-9]{1,3}:)?([0-9]{2,5}):([0-9]{2,5})\"?[[:space:]]*$|\\1\"${PANEL_BIND}:\\4:\\5\"|" \
+# Порты панели наружу торчать не должны: снаружи только reverse proxy.
+# Важно: docker обходит INPUT-цепочку nftables, поэтому привязка к локальному
+# адресу — не «дополнительная мера», а единственное, что здесь работает.
+#
+# Контейнерная часть может быть записана как ${APP_PORT:-3000}, поэтому
+# сопоставляем по хостовому порту, а не по обеим числам.
+sed -i -E 's|^([[:space:]]*-[[:space:]]*)['"'"'"]?([0-9]{1,3}(\.[0-9]{1,3}){3}:)?([0-9]{2,5}):([^'"'"'"[:space:]]+)['"'"'"]?[[:space:]]*$|\1127.0.0.1:\4:\5|' \
     docker-compose.yml
 
+# Наружу через чужой прокси отдаём ТОЛЬКО порт приложения. Метрики и PostgreSQL
+# остаются на localhost: на общей машине адрес docker-моста виден всем соседним
+# контейнерам, и база панели оказалась бы доступна любому из них.
+if [ "$PANEL_BIND" != "127.0.0.1" ]; then
+    sed -i -E "s|^([[:space:]]*-[[:space:]]*)127\.0\.0\.1:3000:|\1${PANEL_BIND}:3000:|" docker-compose.yml
+fi
+
+bind_re=${PANEL_BIND//./\\.}
 cfg=$(docker compose config)
 n_pub=$(grep -c 'published:' <<<"$cfg" || true)
-n_loc=$(grep -c "host_ip: ${PANEL_BIND}" <<<"$cfg" || true)
-[ "$n_pub" -eq "$n_loc" ] || die "в docker-compose.yml остались порты, открытые наружу ($n_loc из $n_pub привязаны к ${PANEL_BIND}) — поправь вручную"
+n_ok=$(grep -cE "host_ip: (127\.0\.0\.1|${bind_re})" <<<"$cfg" || true)
+[ "$n_pub" -eq "$n_ok" ] || die "в docker-compose.yml остались порты, открытые наружу ($n_ok из $n_pub привязаны к localhost или ${PANEL_BIND}) — поправь вручную"
+
+if [ "$PANEL_BIND" != "127.0.0.1" ]; then
+    n_ext=$(grep -cE "host_ip: ${bind_re}" <<<"$cfg" || true)
+    [ "$n_ext" -eq 1 ] || die "на ${PANEL_BIND} должен смотреть ровно один порт (приложение), а смотрит $n_ext — проверь docker-compose.yml"
+fi
 
 docker compose up -d
 

@@ -20,10 +20,22 @@ OUT="${OUT:-/opt/vpn/xray-config.json}"
 
 set -a; . "$ENV_FILE"; set +a
 
-[ -n "${REALITY_DEST:-}" ] || {
-    echo "в .env не задан REALITY_DEST — сначала подбери сайт-донор (docs/INSTALL.md, шаг 6)" >&2
-    exit 1
-}
+SELFSTEAL="${SELFSTEAL:-no}"
+
+if [ "$SELFSTEAL" = "yes" ]; then
+    [ -n "${SELFSTEAL_SNI:-}" ] || {
+        echo "SELFSTEAL=yes, но не задан SELFSTEAL_SNI — см. docs/SELF-STEAL.md" >&2
+        exit 1
+    }
+    # Донором служит собственный веб-сервер, внешний сайт не нужен.
+    REALITY_DEST="${SELFSTEAL_DEST:-127.0.0.1:8443}"
+    export REALITY_DEST
+else
+    [ -n "${REALITY_DEST:-}" ] || {
+        echo "в .env не задан REALITY_DEST — сначала подбери сайт-донор (docs/INSTALL.md, шаг 7)" >&2
+        exit 1
+    }
+fi
 
 # Ключи генерируем один раз и запоминаем: смена ключа отключает всех клиентов.
 if [ -z "${REALITY_PRIVATE_KEY:-}" ]; then
@@ -38,6 +50,8 @@ import json, os, sys
 
 src, dst = sys.argv[1], sys.argv[2]
 raw = open(src).read()
+
+selfsteal = os.environ.get("SELFSTEAL", "no") == "yes"
 
 subs = {
     "__REALITY_DEST__":        os.environ["REALITY_DEST"],
@@ -59,6 +73,21 @@ for inb in cfg["inbounds"]:
     if inb["tag"] in ports:
         inb["port"] = ports[inb["tag"]]
 
+if selfsteal:
+    # dest указывает на свой же веб-сервер, поэтому SNI берём не из dest,
+    # а из списка собственных доменов: они должны быть в SAN его сертификата.
+    sni = [d.strip() for d in os.environ["SELFSTEAL_SNI"].split(",") if d.strip()]
+    xver = int(os.environ.get("SELFSTEAL_XVER", "2"))
+    for inb in cfg["inbounds"]:
+        rs = inb.get("streamSettings", {}).get("realitySettings")
+        if not rs:
+            continue
+        rs["dest"] = os.environ["REALITY_DEST"]
+        rs["serverNames"] = sni
+        # Без PROXY protocol сайты за Xray увидят адрес localhost вместо
+        # реальных посетителей: сломается геолокация, антифрод и логи.
+        rs["xver"] = xver
+
 left = [k for k in subs if k in json.dumps(cfg)]
 if left:
     sys.exit("не подставлены плейсхолдеры: " + ", ".join(left))
@@ -77,7 +106,8 @@ cat >&2 <<EOF
 Для настройки inbound'ов в панели понадобится:
   REALITY public key : ${REALITY_PUBLIC_KEY}
   REALITY short id   : ${REALITY_SHORT_ID}
-  REALITY SNI / dest : ${REALITY_DEST}
+  REALITY dest       : ${REALITY_DEST}
+  REALITY SNI        : ${SELFSTEAL_SNI:-${REALITY_DEST}}
   gRPC serviceName   : ${GRPC_SERVICE_NAME}
   Hysteria2 SNI      : ${HY2_DOMAIN:-<HY2_DOMAIN>}
 
