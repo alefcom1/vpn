@@ -1,7 +1,8 @@
 # vpn
 
 Личный VPN на Hetzner: Remnawave (панель) + Remnawave Node (Xray-core),
-VLESS + XTLS-Vision + REALITY, клиент — Happ.
+VLESS + XTLS-Vision + REALITY на TCP/443, Hysteria2 на UDP/443 как резерв.
+Клиент — Happ.
 Раздельный трафик: российские ресурсы напрямую, заблокированные — через тоннель.
 
 ## Быстрый старт

@@ -55,9 +55,12 @@ set -a; . "$ENV_FILE"; set +a
 : "${XRAY_REALITY_PORT:=443}"
 : "${XRAY_GRPC_PORT:=2087}"
 : "${NODE_PORT:=2222}"
+: "${HY2_PORT:=443}"
+: "${HY2_PORT_HOPPING:=}"
 
 [ -n "${PANEL_DOMAIN:-}" ] || die "в .env не задан PANEL_DOMAIN"
 [ -n "${ACME_EMAIL:-}" ]  || die "в .env не задан ACME_EMAIL"
+[ -n "${HY2_DOMAIN:-}" ]  || die "в .env не задан HY2_DOMAIN"
 
 # ------------------------------------------------------------------ пакеты ---
 log "Базовые пакеты и обновления"
@@ -112,11 +115,32 @@ else
     ssh_rule="tcp dport ${SSH_PORT} accept"
     warn "SSH_ALLOW_IP не задан — SSH открыт всему интернету"
 fi
+# Port hopping: диапазон UDP-портов редиректится на порт Hysteria2
+if [ -n "$HY2_PORT_HOPPING" ]; then
+    hop_input="        udp dport ${HY2_PORT_HOPPING} accept"
+    hop_nat=$(cat <<EOF
+
+table inet hy2nat {
+    chain prerouting {
+        type nat hook prerouting priority dstnat; policy accept;
+        udp dport ${HY2_PORT_HOPPING} redirect to :${HY2_PORT}
+    }
+}
+EOF
+)
+else
+    hop_input=""
+    hop_nat=""
+fi
+
 render "$REPO_DIR/server/nftables/vpn.nft.tmpl" /etc/nftables.conf \
     "__SSH_RULE__"          "$ssh_rule" \
     "__PANEL_HTTPS_PORT__"  "$PANEL_HTTPS_PORT" \
     "__XRAY_REALITY_PORT__" "$XRAY_REALITY_PORT" \
     "__XRAY_GRPC_PORT__"    "$XRAY_GRPC_PORT" \
+    "__HY2_PORT__"          "$HY2_PORT" \
+    "__HY2_HOPPING_INPUT__" "$hop_input" \
+    "__HY2_HOPPING_NAT__"   "$hop_nat" \
     "__NODE_PORT__"         "$NODE_PORT"
 nft -c -f /etc/nftables.conf || die "ruleset nftables не проходит проверку"
 systemctl enable --now nftables >/dev/null
@@ -180,12 +204,14 @@ install -m 0644 "$REPO_DIR/server/caddy/docker-compose.yml" "$CADDY_DIR/docker-c
 render "$REPO_DIR/server/caddy/Caddyfile.tmpl" "$CADDY_DIR/Caddyfile" \
     "__ACME_EMAIL__"       "$ACME_EMAIL" \
     "__PANEL_HTTPS_PORT__" "$PANEL_HTTPS_PORT" \
-    "__PANEL_DOMAIN__"     "$PANEL_DOMAIN"
+    "__PANEL_DOMAIN__"     "$PANEL_DOMAIN" \
+    "__HY2_DOMAIN__"       "$HY2_DOMAIN"
+mkdir -p "$CADDY_DIR/data" "$CADDY_DIR/config" "$CADDY_DIR/logs"
 (cd "$CADDY_DIR" && docker compose up -d)
 
 # -------------------------------------------------------------------- нода ---
 log "Remnawave Node (Xray)"
-mkdir -p "$NODE_DIR/xray-assets"
+mkdir -p "$NODE_DIR/xray-assets" "$NODE_DIR/ssl"
 install -m 0644 "$REPO_DIR/server/node/docker-compose.yml" "$NODE_DIR/docker-compose.yml"
 
 if [ ! -f "$NODE_DIR/.env" ]; then
@@ -200,6 +226,17 @@ fi
 
 ASSETS_DIR="$NODE_DIR/xray-assets" bash "$REPO_DIR/scripts/update-geo.sh"
 
+log "Сертификат для Hysteria2"
+# Caddy выписывает сертификат не мгновенно — ждём, но не блокируем установку
+for i in $(seq 1 12); do
+    if HY2_DOMAIN="$HY2_DOMAIN" CADDY_DATA="$CADDY_DIR/data" SSL_DIR="$NODE_DIR/ssl" \
+       bash "$REPO_DIR/scripts/sync-certs.sh"; then
+        break
+    fi
+    [ "$i" -eq 12 ] && warn "сертификат для ${HY2_DOMAIN} не выписан: проверь A-запись (без проксирования CF) и порт 80, потом запусти /opt/vpn/sync-certs.sh"
+    sleep 5
+done
+
 if grep -q PASTE_FROM_PANEL "$NODE_DIR/.env"; then
     warn "нода не запущена: в $NODE_DIR/.env нет ключа от панели"
 else
@@ -211,12 +248,14 @@ log "Регулярные задачи"
 mkdir -p "$VPN_DIR"
 install -m 0755 "$REPO_DIR/scripts/update-geo.sh"  "$VPN_DIR/update-geo.sh"
 install -m 0755 "$REPO_DIR/scripts/healthcheck.sh" "$VPN_DIR/healthcheck.sh"
+install -m 0755 "$REPO_DIR/scripts/sync-certs.sh"  "$VPN_DIR/sync-certs.sh"
 [ -f "$VPN_DIR/healthcheck.env" ] || cat > "$VPN_DIR/healthcheck.env" <<EOF
 # Заполнить, чтобы получать алерты в Telegram
 TG_TOKEN=
 TG_CHAT=
 XRAY_REALITY_PORT=${XRAY_REALITY_PORT}
 PANEL_HTTPS_PORT=${PANEL_HTTPS_PORT}
+HY2_PORT=${HY2_PORT}
 EOF
 chmod 600 "$VPN_DIR/healthcheck.env"
 
@@ -225,6 +264,7 @@ SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 17 4 * * 1 root ${VPN_DIR}/update-geo.sh >/dev/null 2>&1
 */10 * * * * root ${VPN_DIR}/healthcheck.sh >/dev/null 2>&1
+23 5,17 * * * root HY2_DOMAIN=${HY2_DOMAIN} CADDY_DATA=${CADDY_DIR}/data SSL_DIR=${NODE_DIR}/ssl ${VPN_DIR}/sync-certs.sh >/dev/null 2>&1
 EOF
 
 # ------------------------------------------------------------------- итоги ---
@@ -232,8 +272,9 @@ cat <<EOF
 
 $(log "Готово")
 
-Панель:    https://${PANEL_DOMAIN}:${PANEL_HTTPS_PORT}
-Подписка:  https://${pub_host}/api/sub/<short-uuid>
+Панель:     https://${PANEL_DOMAIN}:${PANEL_HTTPS_PORT}
+Подписка:   https://${pub_host}/api/sub/<short-uuid>
+Hysteria2:  ${HY2_DOMAIN}:${HY2_PORT}/udp
 
 Дальше вручную:
   1. Открыть панель, создать администратора, СРАЗУ включить 2FA.
@@ -245,5 +286,7 @@ $(log "Готово")
      подставив __REALITY_DEST__, __REALITY_PRIVATE_KEY__, __REALITY_SHORT_ID__,
      __GRPC_SERVICE_NAME__.
   6. Templates -> Xray-JSON и Subscription page, HAPP Routing — см. docs/RUNBOOK.md.
+  7. Hysteria2: inbound HYSTERIA2 уже в шаблоне. Проверить, что A-запись
+     ${HY2_DOMAIN} указывает на сервер БЕЗ проксирования Cloudflare (UDP не проксируется).
 
 EOF

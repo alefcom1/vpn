@@ -8,16 +8,13 @@ services:
     network_mode: host
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
-      - caddy-logs:/var/log/caddy
+      # bind-mount, а не именованный том: sync-certs.sh должен читать
+      # выписанные сертификаты с хоста по предсказуемому пути
+      - ./data:/data
+      - ./config:/config
+      - ./logs:/var/log/caddy
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
-
-volumes:
-  caddy-data:
-  caddy-config:
-  caddy-logs:

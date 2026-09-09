@@ -20,9 +20,14 @@ done
 
 for p in "$XRAY_PORT" "$PANEL_PORT"; do
     if ! ss -lnt "sport = :$p" | grep -q LISTEN; then
-        problems+=("порт $p не слушается")
+        problems+=("порт $p/tcp не слушается")
     fi
 done
+
+# Hysteria2 живёт на UDP — у него нет состояния LISTEN, проверяем сам сокет
+if ! ss -lnu "sport = :${HY2_PORT:-443}" | grep -q ":${HY2_PORT:-443}"; then
+    problems+=("порт ${HY2_PORT:-443}/udp не слушается (Hysteria2)")
+fi
 
 disk=$(df --output=pcent / | tail -1 | tr -dc '0-9')
 if [ "${disk:-0}" -ge "$DISK_LIMIT_PCT" ]; then

@@ -12,6 +12,8 @@ services:
     volumes:
       # Кастомные geo-файлы под российские списки (scripts/update-geo.sh)
       - ./xray-assets:/usr/local/share/xray
+      # Сертификат для Hysteria2, синхронизируется из Caddy (scripts/sync-certs.sh)
+      - ./ssl:/var/lib/remnawave/configs/xray/ssl:ro
     logging:
       driver: json-file
       options:

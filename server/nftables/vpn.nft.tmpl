@@ -27,6 +27,10 @@ table inet filter {
         tcp dport __XRAY_REALITY_PORT__ accept
         tcp dport __XRAY_GRPC_PORT__ accept
 
+        # Hysteria2. UDP/443 не конфликтует с REALITY на TCP/443.
+        udp dport __HY2_PORT__ accept
+__HY2_HOPPING_INPUT__
+
         # Внутренний API ноды — только из docker-сетей.
         # Именно saddr, а не iif: панель живёт на своём bridge (br-*), не на docker0.
         ip saddr 172.16.0.0/12 tcp dport __NODE_PORT__ accept
@@ -43,3 +47,4 @@ table inet filter {
         type filter hook output priority filter; policy accept;
     }
 }
+__HY2_HOPPING_NAT__
