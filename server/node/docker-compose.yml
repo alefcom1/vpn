@@ -1,0 +1,19 @@
+services:
+  remnanode:
+    container_name: remnanode
+    hostname: remnanode
+    image: remnawave/node:latest
+    restart: always
+    # host-режим обязателен: Xray слушает 443/2087 напрямую,
+    # без DNAT — иначе теряется реальный IP клиента и ломается REALITY-fallback.
+    network_mode: host
+    env_file:
+      - .env
+    volumes:
+      # Кастомные geo-файлы под российские списки (scripts/update-geo.sh)
+      - ./xray-assets:/usr/local/share/xray
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -1,0 +1,27 @@
+{
+	email __ACME_EMAIL__
+	# Xray занимает 443, поэтому HTTPS панели живёт на отдельном порту
+	https_port __PANEL_HTTPS_PORT__
+	admin off
+}
+
+__PANEL_DOMAIN__ {
+	# Панель Remnawave. Наружу торчит только этот reverse proxy.
+	reverse_proxy 127.0.0.1:3000
+
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 10MiB
+			roll_keep 3
+		}
+	}
+}

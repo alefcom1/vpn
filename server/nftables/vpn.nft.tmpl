@@ -1,0 +1,45 @@
+#!/usr/sbin/nft -f
+# Генерируется bootstrap.sh из шаблона. Правки вносить в шаблон, не в /etc/nftables.conf.
+flush ruleset
+
+table inet filter {
+    chain input {
+        type filter hook input priority filter; policy drop;
+
+        iif lo accept
+        ct state established,related accept
+        ct state invalid drop
+
+        # ICMP: нужен для PMTU, иначе будут виснуть крупные пакеты
+        ip protocol icmp accept
+        ip6 nexthdr icmpv6 accept
+
+        # SSH
+        __SSH_RULE__
+
+        # ACME HTTP-01 (Caddy). Можно закрыть после выпуска, если используется DNS-01.
+        tcp dport 80 accept
+
+        # Панель и подписка за Caddy
+        tcp dport __PANEL_HTTPS_PORT__ accept
+
+        # VPN: основной и резервный inbound
+        tcp dport __XRAY_REALITY_PORT__ accept
+        tcp dport __XRAY_GRPC_PORT__ accept
+
+        # Внутренний API ноды — только из docker-сетей.
+        # Именно saddr, а не iif: панель живёт на своём bridge (br-*), не на docker0.
+        ip saddr 172.16.0.0/12 tcp dport __NODE_PORT__ accept
+
+        # Шумные сканы не логируем — экономим диск
+        counter drop
+    }
+
+    chain forward {
+        type filter hook forward priority filter; policy accept;
+    }
+
+    chain output {
+        type filter hook output priority filter; policy accept;
+    }
+}
