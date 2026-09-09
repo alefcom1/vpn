@@ -14,6 +14,7 @@ cp .env.example .env && nano .env
 
 ## Документация
 
+- [docs/CLIENT.md](docs/CLIENT.md) — инструкция для тех, кому раздаёшь доступ
 - [docs/INSTALL.md](docs/INSTALL.md) — пошаговая установка с нуля
 - [docs/SHARED-HOST.md](docs/SHARED-HOST.md) — если на сервере уже есть продакшен
 - [docs/SELF-STEAL.md](docs/SELF-STEAL.md) — вернуть REALITY на 443, донор — свои же сайты
