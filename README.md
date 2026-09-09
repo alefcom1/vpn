@@ -14,6 +14,7 @@ cp .env.example .env && nano .env
 
 ## Документация
 
+- [docs/INSTALL.md](docs/INSTALL.md) — пошаговая установка с нуля
 - [docs/PLAN.md](docs/PLAN.md) — план работ, выбор протоколов, риски
 - [docs/RUNBOOK.md](docs/RUNBOOK.md) — процедуры: запуск, выдача доступов, авария
 
@@ -27,6 +28,7 @@ server/caddy/             reverse proxy и TLS
 server/node/              Remnawave Node (Xray)
 server/xray/              шаблоны конфига Xray для панели
 scripts/gen-reality-keys  ключи REALITY
+scripts/render-xray-template  готовый конфиг Xray для панели
 scripts/update-geo        списки блокировок (cron)
 scripts/healthcheck       мониторинг + алерты в Telegram
 ```

@@ -1,6 +1,6 @@
 # RUNBOOK
 
-Рабочие процедуры. План и обоснования — [PLAN.md](PLAN.md).
+Рабочие процедуры. Установка с нуля — [INSTALL.md](INSTALL.md), план и обоснования — [PLAN.md](PLAN.md).
 
 ## 1. Первый запуск
 
@@ -20,12 +20,10 @@ geo-файлы, cron на обновление списков и healthcheck.
 2. **Nodes → Create**: адрес `172.17.0.1`, порт `2222`.
    Выданный ключ вписать в `/opt/remnanode/.env`, затем
    `cd /opt/remnanode && docker compose up -d`.
-3. `./scripts/gen-reality-keys.sh` — приватный ключ в шаблон конфига,
-   публичный в настройки inbound'а.
-4. Подобрать `REALITY_DEST` (см. §2).
-5. Вставить `server/xray/config-template.json` в шаблон Xray в панели,
-   подставив `__REALITY_DEST__`, `__REALITY_PRIVATE_KEY__`, `__REALITY_SHORT_ID__`,
-   `__GRPC_SERVICE_NAME__`.
+3. Подобрать `REALITY_DEST` (см. §2) и записать в `.env`.
+4. `./scripts/render-xray-template.sh` — соберёт готовый конфиг в
+   `/opt/vpn/xray-config.json` и выведет значения для inbound'ов.
+5. Вставить этот конфиг в шаблон Xray в панели.
 6. Настроить подписку и профили (§4), создать первого пользователя (§5).
 
 ## 2. Подбор REALITY dest
