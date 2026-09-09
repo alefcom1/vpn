@@ -86,14 +86,29 @@ ssh -i ~/.ssh/vpn_hetzner root@178.105.192.76
 
 4. **SSL/TLS → Overview** → режим **Full (strict)**.
 
-Проверить, что записи разъехались:
+Проверить, что записи разъехались — **обязательно с явным резолвером**:
 
 ```bash
-dig +short panel.traduzione.tech
-dig +short hy2.traduzione.tech
+dig +short panel.traduzione.tech @1.1.1.1
+dig +short hy2.traduzione.tech @1.1.1.1
 ```
 
 Обе команды должны вернуть `178.105.192.76`. Не идти дальше, пока это не так.
+
+> **Если `dig` отвечает `connection timed out; no servers could be reached`** — это не про
+> домен, а про то, что `dig` не достучался до резолвера. На macOS `dig` читает
+> `/etc/resolv.conf` напрямую, а система резолвит через mDNSResponder со своей
+> конфигурацией: браузер работает, `dig` — нет. Обычные причины: активный VPN-клиент
+> перехватил DNS, провайдер режет исходящий порт 53, или `/etc/resolv.conf` пуст после
+> отключения предыдущего VPN. Обходные проверки:
+>
+> ```bash
+> dscacheutil -q host -a name panel.traduzione.tech   # системный резолвер macOS
+> nslookup panel.traduzione.tech 1.1.1.1
+> cat /etc/resolv.conf && scutil --dns | head -40     # если нужна причина
+> ```
+>
+> Ответ `NXDOMAIN` или пустой вывод — вот это действительно «записи ещё не разъехались».
 
 ---
 
