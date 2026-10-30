@@ -47,7 +47,9 @@ chmod 600 "$DIR/3proxy.cfg"
 install -m 0644 "$SRC_DIR/docker-compose.yml" "$DIR/docker-compose.yml"
 printf 'PROXY_PORT=%s\n' "$PROXY_PORT" > "$DIR/.env"
 
-cd "$DIR" && docker compose up -d
+# --force-recreate обязателен: 3proxy читает конфиг только при старте,
+# и без пересоздания смена пароля молча не применилась бы.
+cd "$DIR" && docker compose up -d --force-recreate
 
 sleep 2
 docker ps --format '{{.Names}}' | grep -qx webproxy \
@@ -72,5 +74,6 @@ cat <<SUMMARY
 
 Настройка браузера — docs/PROXY.md
 Учётные данные сохранены в $DIR/credentials
+Сменить пароль: rm $DIR/credentials && bash proxy/setup.sh
 
 SUMMARY
