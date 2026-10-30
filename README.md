@@ -14,6 +14,7 @@ cp .env.example .env && nano .env
 
 ## Документация
 
+- [docs/PROXY.md](docs/PROXY.md) — прокси для веб-интерфейсов (chatgpt.com, claude.ai)
 - [docs/CLIENT.md](docs/CLIENT.md) — инструкция для тех, кому раздаёшь доступ
 - [docs/INSTALL.md](docs/INSTALL.md) — пошаговая установка с нуля
 - [docs/SHARED-HOST.md](docs/SHARED-HOST.md) — если на сервере уже есть продакшен
@@ -34,6 +35,7 @@ scripts/gen-reality-keys  ключи REALITY
 scripts/render-xray-template  готовый конфиг Xray для панели
 scripts/update-geo        списки блокировок (cron)
 scripts/healthcheck       мониторинг + алерты в Telegram
+proxy/                    HTTP-прокси для браузера (отдельно от VPN)
 ```
 
 Секреты в репозиторий не коммитятся: см. `.env.example` и `.gitignore`.
