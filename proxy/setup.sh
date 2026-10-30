@@ -16,6 +16,7 @@ SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIR="${DIR:-/opt/webproxy}"
 PROXY_PORT="${PROXY_PORT:-18443}"
 PROXY_USER="${PROXY_USER:-web}"
+PAC_PORT="${PAC_PORT:-18444}"
 
 [ "$(id -u)" -eq 0 ] || { echo "запускать от root" >&2; exit 1; }
 command -v docker >/dev/null || { echo "нет docker" >&2; exit 1; }
@@ -30,10 +31,15 @@ if [ -f "$DIR/credentials" ]; then
 else
     # Без конвейера: `... | head -c N` ломается под pipefail через SIGPIPE.
     PROXY_PASS=$(openssl rand -hex 16)
+    # Случайный путь к PAC: файл раздаётся без TLS и авторизации,
+    # поэтому угадываемый адрес выдал бы адрес и порт прокси любому сканеру.
+    PAC_TOKEN=$(openssl rand -hex 8)
     cat > "$DIR/credentials" <<CRED
 PROXY_USER=$PROXY_USER
 PROXY_PASS=$PROXY_PASS
 PROXY_PORT=$PROXY_PORT
+PAC_PORT=$PAC_PORT
+PAC_TOKEN=$PAC_TOKEN
 CRED
     chmod 600 "$DIR/credentials"
 fi
@@ -45,17 +51,29 @@ sed -e "s|__PROXY_USER__|$PROXY_USER|g" \
 chmod 600 "$DIR/3proxy.cfg"
 
 install -m 0644 "$SRC_DIR/docker-compose.yml" "$DIR/docker-compose.yml"
-printf 'PROXY_PORT=%s\n' "$PROXY_PORT" > "$DIR/.env"
+install -m 0644 "$SRC_DIR/pac-Caddyfile" "$DIR/pac-Caddyfile"
+mkdir -p "$DIR/pac"
+cat > "$DIR/.env" <<ENV
+PROXY_PORT=$PROXY_PORT
+PAC_PORT=$PAC_PORT
+PAC_TOKEN=$PAC_TOKEN
+ENV
+
+PROXY_HOST="${PROXY_HOST:-$(curl -s --max-time 5 https://api.ipify.org)}"
+DIR="$DIR" PROXY_HOST="$PROXY_HOST" OUT="$DIR/pac/proxy.pac" \
+    bash "$SRC_DIR/gen-pac.sh" >/dev/null
 
 # --force-recreate обязателен: 3proxy читает конфиг только при старте,
 # и без пересоздания смена пароля молча не применилась бы.
 cd "$DIR" && docker compose up -d --force-recreate
 
 sleep 2
-docker ps --format '{{.Names}}' | grep -qx webproxy \
-    || { echo "контейнер не поднялся:"; docker logs webproxy --tail 20; exit 1; }
+for c in webproxy webproxy-pac; do
+    docker ps --format '{{.Names}}' | grep -qx "$c" \
+        || { echo "контейнер $c не поднялся:"; docker logs "$c" --tail 20; exit 1; }
+done
 
-ip=$(curl -s --max-time 5 https://api.ipify.org || echo "<IP сервера>")
+ip="${PROXY_HOST:-<IP сервера>}"
 
 cat <<SUMMARY
 
@@ -71,6 +89,10 @@ cat <<SUMMARY
   curl -x http://$PROXY_USER:$PROXY_PASS@$ip:$PROXY_PORT -s https://api.ipify.org
 
 Должен вернуться $ip, а не твой домашний адрес.
+
+Адрес PAC-файла для браузера:
+
+  http://$ip:$PAC_PORT/$PAC_TOKEN.pac
 
 Настройка браузера — docs/PROXY.md
 Учётные данные сохранены в $DIR/credentials

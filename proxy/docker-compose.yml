@@ -12,3 +12,23 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  # Раздатчик PAC-файла. Нужен, чтобы список доменов правился в одном месте
+  # на сервере, а браузеры подтягивали его сами.
+  webproxy-pac:
+    image: caddy:2-alpine
+    container_name: webproxy-pac
+    restart: always
+    environment:
+      PAC_PORT: ${PAC_PORT:-18444}
+      PAC_TOKEN: ${PAC_TOKEN:?нет PAC_TOKEN в .env}
+    ports:
+      - "${PAC_PORT:-18444}:${PAC_PORT:-18444}"
+    volumes:
+      - ./pac-Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./pac:/srv:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

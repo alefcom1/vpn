@@ -1,0 +1,16 @@
+# Раздаёт только PAC-файл и больше ничего. Отдельный контейнер,
+# отдельный порт — существующий Caddy не затрагивается.
+{
+	admin off
+	auto_https off
+}
+
+:{$PAC_PORT} {
+	handle /{$PAC_TOKEN}.pac {
+		root * /srv
+		rewrite * /proxy.pac
+		header Content-Type application/x-ns-proxy-autoconfig
+		file_server
+	}
+	respond 404
+}

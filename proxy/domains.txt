@@ -1,0 +1,124 @@
+# Домены, которые ходят через прокси. Всё остальное — напрямую.
+#
+# Формат: один домен на строку, поддомены включаются автоматически
+# (openai.com покрывает api.openai.com, chat.openai.com и т.д.).
+# Строки с # игнорируются.
+#
+# После правки: sudo bash /root/vpn/proxy/gen-pac.sh
+
+# ─────────────────────────────────────────────────────────────
+# ИИ-сервисы (почти все закрыты для РФ и РБ по IP)
+# ─────────────────────────────────────────────────────────────
+openai.com
+chatgpt.com
+oaistatic.com
+oaiusercontent.com
+sora.com
+anthropic.com
+claude.ai
+claudeusercontent.com
+gemini.google.com
+aistudio.google.com
+generativelanguage.googleapis.com
+makersuite.google.com
+x.ai
+grok.com
+perplexity.ai
+mistral.ai
+copilot.microsoft.com
+githubcopilot.com
+cursor.com
+cursor.sh
+codeium.com
+windsurf.com
+openrouter.ai
+poe.com
+groq.com
+together.ai
+fireworks.ai
+replicate.com
+elevenlabs.io
+midjourney.com
+runwayml.com
+suno.com
+leonardo.ai
+ideogram.ai
+civitai.com
+perplexity.com
+
+# ─────────────────────────────────────────────────────────────
+# Сервисы, закрывшие доступ для РФ и РБ
+# ─────────────────────────────────────────────────────────────
+figma.com
+notion.so
+notion.com
+vercel.com
+netlify.com
+gitlab.com
+atlassian.com
+atlassian.net
+slack.com
+miro.com
+canva.com
+coursera.org
+udemy.com
+stripe.com
+paypal.com
+patreon.com
+upwork.com
+jetbrains.com
+docker.com
+grammarly.com
+dropbox.com
+airtable.com
+intercom.io
+
+# ─────────────────────────────────────────────────────────────
+# Заблокированные в РФ
+# ─────────────────────────────────────────────────────────────
+instagram.com
+cdninstagram.com
+facebook.com
+fbcdn.net
+meta.com
+threads.net
+x.com
+twitter.com
+twimg.com
+discord.com
+discord.gg
+discordapp.com
+discordapp.net
+linkedin.com
+licdn.com
+medium.com
+proton.me
+protonmail.com
+signal.org
+viber.com
+soundcloud.com
+bbc.com
+bbc.co.uk
+dw.com
+meduza.io
+svoboda.org
+currenttime.tv
+rutracker.org
+roblox.com
+
+# ─────────────────────────────────────────────────────────────
+# Тяжёлый трафик — раскомментировать осознанно.
+#
+# У сервера лимит 20 ТБ в месяц, и видео съедает его быстрее всего.
+# Один человек, смотрящий YouTube в 4K, способен выбрать несколько
+# сотен гигабайт. Включать имеет смысл, только если это действительно
+# нужно и видно по vnstat, что запас есть.
+# ─────────────────────────────────────────────────────────────
+# youtube.com
+# googlevideo.com
+# ytimg.com
+# netflix.com
+# nflxvideo.net
+# spotify.com
+# scdn.co
+# twitch.tv
