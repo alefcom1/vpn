@@ -7,6 +7,11 @@
 #
 set -euo pipefail
 
+# Без этого любая неудачная команда убивает скрипт молча — как случилось
+# с генерацией пароля через `tr | head`: head закрывает канал, tr получает
+# SIGPIPE, pipefail превращает это в выход с кодом 141 и пустым выводом.
+trap 'echo "ОШИБКА: строка $LINENO, код выхода $?" >&2' ERR
+
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIR="${DIR:-/opt/webproxy}"
 PROXY_PORT="${PROXY_PORT:-18443}"
@@ -23,7 +28,8 @@ if [ -f "$DIR/credentials" ]; then
     . "$DIR/credentials"
     echo "Используются сохранённые учётные данные из $DIR/credentials"
 else
-    PROXY_PASS=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24)
+    # Без конвейера: `... | head -c N` ломается под pipefail через SIGPIPE.
+    PROXY_PASS=$(openssl rand -hex 16)
     cat > "$DIR/credentials" <<CRED
 PROXY_USER=$PROXY_USER
 PROXY_PASS=$PROXY_PASS
