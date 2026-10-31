@@ -82,6 +82,30 @@ for c in webproxy webproxy-pac; do
         || { echo "контейнер $c не поднялся:"; docker logs "$c" --tail 20; exit 1; }
 done
 
+# Самопроверка. Открытый прокси на публичном адресе находят за часы,
+# а жалобы за чужой трафик приходят владельцу сервера — поэтому проверяем
+# не «поднялся ли контейнер», а «отказывает ли он без пароля».
+echo "Проверка авторизации..."
+noauth=$(curl -x "http://127.0.0.1:$PROXY_PORT" -s -o /dev/null -w '%{http_code}' \
+    --max-time 8 https://api.ipify.org || true)
+if [ "$noauth" = "200" ]; then
+    echo >&2
+    echo "ОПАСНО: прокси пускает без пароля. Контейнеры остановлены." >&2
+    echo "Это открытый прокси — оставлять его работающим нельзя." >&2
+    docker compose down >/dev/null 2>&1 || true
+    exit 1
+fi
+
+withauth=$(curl -x "http://$PROXY_USER:$PROXY_PASS@127.0.0.1:$PROXY_PORT" -s -o /dev/null \
+    -w '%{http_code}' --max-time 10 https://api.ipify.org || true)
+if [ "$withauth" != "200" ]; then
+    echo >&2
+    echo "Прокси не пропускает запрос даже с паролем (код: ${withauth:-нет ответа})." >&2
+    echo "Логи: docker logs webproxy --tail 30" >&2
+    exit 1
+fi
+echo "  без пароля — отказ, с паролем — проходит."
+
 ip="${PROXY_HOST:-<IP сервера>}"
 
 cat <<SUMMARY
