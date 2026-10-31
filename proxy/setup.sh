@@ -20,6 +20,7 @@ DIR="${DIR:-/opt/webproxy}"
 env_PROXY_PORT="${PROXY_PORT:-}"
 env_PROXY_USER="${PROXY_USER:-}"
 env_PAC_PORT="${PAC_PORT:-}"
+env_SOCKS_PORT="${SOCKS_PORT:-}"
 
 [ "$(id -u)" -eq 0 ] || { echo "запускать от root" >&2; exit 1; }
 command -v docker >/dev/null || { echo "нет docker" >&2; exit 1; }
@@ -36,6 +37,7 @@ fi
 PROXY_PORT="${env_PROXY_PORT:-${PROXY_PORT:-18443}}"
 PROXY_USER="${env_PROXY_USER:-${PROXY_USER:-web}}"
 PAC_PORT="${env_PAC_PORT:-${PAC_PORT:-18444}}"
+SOCKS_PORT="${env_SOCKS_PORT:-${SOCKS_PORT:-18445}}"
 
 # Файл, созданный прежней версией скрипта, этих полей не содержит.
 # Добираем недостающее, иначе set -u завершит работу на первой подстановке.
@@ -50,12 +52,14 @@ PROXY_PASS=$PROXY_PASS
 PROXY_PORT=$PROXY_PORT
 PAC_PORT=$PAC_PORT
 PAC_TOKEN=$PAC_TOKEN
+SOCKS_PORT=$SOCKS_PORT
 CRED
 chmod 600 "$DIR/credentials"
 
 sed -e "s|__PROXY_USER__|$PROXY_USER|g" \
     -e "s|__PROXY_PASS__|$PROXY_PASS|g" \
     -e "s|__PROXY_PORT__|$PROXY_PORT|g" \
+    -e "s|__SOCKS_PORT__|$SOCKS_PORT|g" \
     "$SRC_DIR/3proxy.cfg.tmpl" > "$DIR/3proxy.cfg"
 chmod 600 "$DIR/3proxy.cfg"
 
@@ -66,6 +70,7 @@ cat > "$DIR/.env" <<ENV
 PROXY_PORT=$PROXY_PORT
 PAC_PORT=$PAC_PORT
 PAC_TOKEN=$PAC_TOKEN
+SOCKS_PORT=$SOCKS_PORT
 ENV
 
 PROXY_HOST="${PROXY_HOST:-$(curl -s --max-time 5 https://api.ipify.org)}"
@@ -112,10 +117,11 @@ cat <<SUMMARY
 
 Прокси работает.
 
-  Адрес : $ip
-  Порт  : $PROXY_PORT
-  Логин : $PROXY_USER
-  Пароль: $PROXY_PASS
+  Адрес      : $ip
+  Порт HTTP  : $PROXY_PORT   — браузеры, системный прокси, PAC
+  Порт SOCKS5: $SOCKS_PORT   — Telegram и прочие приложения со своими настройками
+  Логин      : $PROXY_USER
+  Пароль     : $PROXY_PASS
 
 Проверка с любой машины:
 

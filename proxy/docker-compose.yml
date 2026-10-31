@@ -5,6 +5,7 @@ services:
     restart: always
     ports:
       - "${PROXY_PORT:-18443}:${PROXY_PORT:-18443}"
+      - "${SOCKS_PORT:-18445}:${SOCKS_PORT:-18445}"
     volumes:
       - ./3proxy.cfg:/etc/3proxy/3proxy.cfg:ro
     logging:
