@@ -99,6 +99,11 @@ viber.com
 whatsapp.com
 whatsapp.net
 wa.me
+telegram.org
+telegram.me
+t.me
+telesco.pe
+cdn-telegram.org
 soundcloud.com
 bbc.com
 bbc.co.uk
