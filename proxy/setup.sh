@@ -14,35 +14,44 @@ trap 'echo "ОШИБКА: строка $LINENO, код выхода $?" >&2' ERR
 
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIR="${DIR:-/opt/webproxy}"
-PROXY_PORT="${PROXY_PORT:-18443}"
-PROXY_USER="${PROXY_USER:-web}"
-PAC_PORT="${PAC_PORT:-18444}"
+
+# Явно переданные в окружении значения должны побеждать сохранённые,
+# поэтому запоминаем их до того, как подхватим credentials.
+env_PROXY_PORT="${PROXY_PORT:-}"
+env_PROXY_USER="${PROXY_USER:-}"
+env_PAC_PORT="${PAC_PORT:-}"
 
 [ "$(id -u)" -eq 0 ] || { echo "запускать от root" >&2; exit 1; }
 command -v docker >/dev/null || { echo "нет docker" >&2; exit 1; }
 
-mkdir -p "$DIR"
+mkdir -p "$DIR" "$DIR/pac"
 
-# Пароль генерируем один раз: перезапуск setup.sh не должен отвязывать
-# уже настроенные браузеры.
+# Сохранённые значения подхватываем, чтобы повторный запуск не менял пароль
+# и не отвязывал уже настроенные устройства.
 if [ -f "$DIR/credentials" ]; then
     . "$DIR/credentials"
     echo "Используются сохранённые учётные данные из $DIR/credentials"
-else
-    # Без конвейера: `... | head -c N` ломается под pipefail через SIGPIPE.
-    PROXY_PASS=$(openssl rand -hex 16)
-    # Случайный путь к PAC: файл раздаётся без TLS и авторизации,
-    # поэтому угадываемый адрес выдал бы адрес и порт прокси любому сканеру.
-    PAC_TOKEN=$(openssl rand -hex 8)
-    cat > "$DIR/credentials" <<CRED
+fi
+
+PROXY_PORT="${env_PROXY_PORT:-${PROXY_PORT:-18443}}"
+PROXY_USER="${env_PROXY_USER:-${PROXY_USER:-web}}"
+PAC_PORT="${env_PAC_PORT:-${PAC_PORT:-18444}}"
+
+# Файл, созданный прежней версией скрипта, этих полей не содержит.
+# Добираем недостающее, иначе set -u завершит работу на первой подстановке.
+PROXY_PASS="${PROXY_PASS:-$(openssl rand -hex 16)}"
+# Случайный путь к PAC: файл раздаётся без TLS и авторизации, поэтому
+# угадываемый адрес выдал бы адрес и порт прокси любому сканеру.
+PAC_TOKEN="${PAC_TOKEN:-$(openssl rand -hex 8)}"
+
+cat > "$DIR/credentials" <<CRED
 PROXY_USER=$PROXY_USER
 PROXY_PASS=$PROXY_PASS
 PROXY_PORT=$PROXY_PORT
 PAC_PORT=$PAC_PORT
 PAC_TOKEN=$PAC_TOKEN
 CRED
-    chmod 600 "$DIR/credentials"
-fi
+chmod 600 "$DIR/credentials"
 
 sed -e "s|__PROXY_USER__|$PROXY_USER|g" \
     -e "s|__PROXY_PASS__|$PROXY_PASS|g" \
